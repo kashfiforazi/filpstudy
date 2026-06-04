@@ -117,7 +117,13 @@ export default function AIChatbot({
 
     try {
       // Direct POST to fullstack server proxy endpoint
-      const response = await fetch('/api/chat', {
+      // Support Vercel and other external hostings by querying the live container endpoint dynamically
+      let apiEndpoint = '/api/chat';
+      if (typeof window !== 'undefined' && (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('github.io') || window.location.port !== '3000')) {
+        apiEndpoint = 'https://ais-pre-wsqj5xymy3lbkirtsvxwom-484510607149.asia-southeast1.run.app/api/chat';
+      }
+
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

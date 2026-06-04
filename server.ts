@@ -13,6 +13,17 @@ async function startServer() {
   // Middleware for body parsing
   app.use(express.json());
 
+  // CORS middleware to support external deployments (Vercel/GitHub Pages) connecting back to this backend securely
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Initialize Gemini Client with standard telemetry headers
   const apiKey = process.env.GEMINI_API_KEY;
   const ai = new GoogleGenAI({
