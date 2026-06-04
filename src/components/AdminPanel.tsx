@@ -3,7 +3,8 @@ import { Book, Category } from '../types';
 import { dbInstance } from '../db';
 import { 
   X, Plus, Trash2, Edit3, Image, FileText, Star, 
-  ArrowUp, ArrowDown, Download, Upload, RefreshCw, Zap
+  ArrowUp, ArrowDown, Download, Upload, RefreshCw, Zap,
+  Lock, Unlock, ShieldAlert, User
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -12,10 +13,18 @@ interface AdminPanelProps {
   onRefreshLibrary: () => void;
   categories: Category[];
   books: Book[];
+  currentEmail?: string;
 }
 
-export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categories, books }: AdminPanelProps) {
+export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categories, books, currentEmail = 'mdkawsarforazi.biz@gmail.com' }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<'books' | 'categories' | 'backup'>('books');
+  
+  // Security Access Control System (Passcode: FS2026)
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    return sessionStorage.getItem('flipstudy_admin_unlocked') === 'true';
+  });
+  const [passcode, setPasscode] = useState('');
+  const [isSyllabusAdminMode, setIsSyllabusAdminMode] = useState(false);
   
   // Custom states for adding/editing a book
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
@@ -96,6 +105,8 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
     const currentBook = books.find(b => b.id === bookId);
     const finalPdf = pdfBlob || currentBook?.pdfFile || 'mock-physics';
 
+    const isSaveAdmin = isSyllabusAdminMode && isAdminLoggedIn;
+
     const bookToSave: Book = {
       id: bookId,
       title: title.trim(),
@@ -104,7 +115,9 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
       pdfFile: finalPdf,
       isFeatured,
       createdAt: currentBook?.createdAt || Date.now(),
-      order: currentBook?.order || (books.length + 1)
+      order: currentBook?.order || (books.length + 1),
+      addedByAdmin: isSaveAdmin,
+      ownerEmail: isSaveAdmin ? undefined : currentEmail
     };
 
     // Auto-save category to DB if it doesn't exist
@@ -380,7 +393,98 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
         {/* Console Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-6 bg-[#F9F7F2] dark:bg-[#121110]">
           {activeTab === 'books' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="space-y-6">
+              
+              {/* Dual Role Choice Header */}
+              <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-white dark:bg-[#1C1C22] rounded-2xl border border-[#E9E4DB] dark:border-zinc-800 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${isSyllabusAdminMode ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-500' : 'bg-teal-50 dark:bg-teal-950/30 text-teal-600'}`}>
+                    {isSyllabusAdminMode ? <ShieldAlert className="w-5 h-5 text-rose-500" /> : <User className="w-5 h-5 text-teal-500" />}
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-sans font-black uppercase tracking-wider text-black dark:text-white">
+                      {isSyllabusAdminMode ? "Syllabus Administration Mode" : "Student Private Upload Mode"}
+                    </h3>
+                    <p className="text-[10px] text-zinc-650 dark:text-gray-400 font-sans mt-0.5 leading-normal">
+                      {isSyllabusAdminMode 
+                        ? "Unlocked books become public & fully visible to all students visiting FlipStudy."
+                        : `Books uploaded here are saved privately. Only you (${currentEmail}) can view them.`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setIsSyllabusAdminMode(false);
+                      setPasscode('');
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold font-sans rounded-lg tracking-tight transition-all cursor-pointer ${
+                      !isSyllabusAdminMode 
+                        ? 'bg-zinc-100 dark:bg-zinc-800 text-black dark:text-white border border-[#E9E4DB] dark:border-zinc-700' 
+                        : 'text-zinc-600 dark:text-gray-400 hover:bg-zinc-50 dark:hover:bg-zinc-900'
+                    }`}
+                  >
+                    Student Upload
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsSyllabusAdminMode(true);
+                    }}
+                    className={`px-3 py-1.5 text-xs font-bold font-sans rounded-lg tracking-tight transition-all cursor-pointer ${
+                      isSyllabusAdminMode 
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-thin border-rose-200' 
+                        : 'text-zinc-650 dark:text-gray-400 hover:bg-[#FFD1DC]/10'
+                    }`}
+                  >
+                    Syllabus Admin Mode
+                  </button>
+                </div>
+              </div>
+
+              {/* Security Shield Lock Screen */}
+              {isSyllabusAdminMode && !isAdminLoggedIn ? (
+                <div className="bg-white dark:bg-[#1C1C22] rounded-2xl p-6 sm:p-8 border border-rose-100 dark:border-[#2C2C32] text-center space-y-4 max-w-md mx-auto my-12 shadow-sm">
+                  <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center mx-auto text-rose-500">
+                    <Lock className="w-6 h-6 animate-bounce" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-sans font-black uppercase tracking-wider text-black dark:text-white">Admin Credentials Required</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 leading-normal">
+                      Enter the passcode to unlock official curriculum uploads.
+                    </p>
+                  </div>
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (passcode === "FS2026") {
+                        setIsAdminLoggedIn(true);
+                        sessionStorage.setItem('flipstudy_admin_unlocked', 'true');
+                        setPasscode('');
+                      } else {
+                        alert("❌ Unauthorized Passcode! Access Denied.");
+                      }
+                    }}
+                    className="space-y-3"
+                  >
+                    <input
+                      type="password"
+                      placeholder="ENTER ACCESS PASSCODE..."
+                      value={passcode}
+                      onChange={(e) => setPasscode(e.target.value)}
+                      className="w-full text-center bg-zinc-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl py-2 px-4 focus:outline-none focus:ring-1 focus:ring-rose-400 font-mono text-xs uppercase tracking-widest text-[#333333] dark:text-white"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      className="w-full bg-black dark:bg-[#FFD1DC] dark:text-black text-white hover:bg-zinc-900 dark:hover:bg-[#FFC0CB] font-sans font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer uppercase tracking-widest"
+                    >
+                      Verify Admin Access
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Add/Edit Book Form (5 columns) */}
               <form onSubmit={handleSaveBook} className="lg:col-span-5 bg-white dark:bg-[#1C1C22] p-5 rounded-xl border border-[#E9E4DB] dark:border-[#2C2C32] flex flex-col gap-4">
                 <span className="text-xs uppercase font-mono tracking-wider text-gray-400">
@@ -532,16 +636,25 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
                           <h4 className="text-xs font-semibold text-gray-900 dark:text-white truncate">
                             {b.title}
                           </h4>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 rounded-md">
+                          <div className="flex items-center flex-wrap gap-1.5 mt-1">
+                            <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400 rounded-md">
                               {b.category}
                             </span>
                             {b.isFeatured && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400 rounded-md flex items-center gap-0.5">
+                              <span className="text-[9px] px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400 rounded-md flex items-center gap-0.5">
                                 <Star size={8} className="fill-amber-500 text-amber-500" /> Featured
                               </span>
                             )}
-                            <span className="text-[10px] font-mono text-gray-400">
+                            {b.addedByAdmin || !b.ownerEmail ? (
+                              <span className="text-[9px] px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-300 rounded-md font-bold uppercase tracking-wide">
+                                🎓 Official Syllabus
+                              </span>
+                            ) : (
+                              <span className="text-[9px] px-1.5 py-0.5 bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-300 rounded-md font-bold uppercase tracking-wide">
+                                👤 Private Upload ({b.ownerEmail?.split('@')[0]})
+                              </span>
+                            )}
+                            <span className="text-[9px] font-mono text-gray-400">
                               {b.pdfFile instanceof Blob ? 'Custom Web PDF' : 'Mock Syllabus'}
                             </span>
                           </div>
@@ -550,41 +663,53 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
 
                       {/* Controls (Order + Edit + Delete) */}
                       <div className="flex items-center gap-1">
-                        {/* Order adjustment buttons */}
-                        <button
-                          disabled={index === 0}
-                          onClick={() => adjustOrder(index, 'up')}
-                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400 hover:text-gray-700 dark:hover:text-white disabled:opacity-20 cursor-pointer"
-                          title="Move up on shelf"
-                        >
-                          <ArrowUp size={13} />
-                        </button>
-                        <button
-                          disabled={index === books.length - 1}
-                          onClick={() => adjustOrder(index, 'down')}
-                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400 hover:text-gray-700 dark:hover:text-white disabled:opacity-20 cursor-pointer"
-                          title="Move down on shelf"
-                        >
-                          <ArrowDown size={13} />
-                        </button>
+                        {/* Check permissions */}
+                        {((isSyllabusAdminMode && isAdminLoggedIn) || (!b.addedByAdmin && b.ownerEmail && b.ownerEmail.toLowerCase() === currentEmail.toLowerCase())) ? (
+                          <>
+                            {/* Order adjustment buttons */}
+                            <button
+                              disabled={index === 0}
+                              onClick={() => adjustOrder(index, 'up')}
+                              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400 hover:text-gray-700 dark:hover:text-white disabled:opacity-20 cursor-pointer"
+                              title="Move up on shelf"
+                            >
+                              <ArrowUp size={13} />
+                            </button>
+                            <button
+                              disabled={index === books.length - 1}
+                              onClick={() => adjustOrder(index, 'down')}
+                              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400 hover:text-gray-700 dark:hover:text-white disabled:opacity-20 cursor-pointer"
+                              title="Move down on shelf"
+                            >
+                              <ArrowDown size={13} />
+                            </button>
 
-                        <div className="h-4 w-[1px] bg-gray-200 dark:bg-zinc-800 mx-1" />
+                            <div className="h-4 w-[1px] bg-gray-200 dark:bg-zinc-800 mx-1" />
 
-                        {/* Edit & delete buttons */}
-                        <button
-                          onClick={() => startEditBook(b)}
-                          className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/20 text-[#CBBCA9] hover:text-rose-500 cursor-pointer"
-                          title="Edit textbook parameters"
-                        >
-                          <Edit3 size={13} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteBook(b.id)}
-                          className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/20 text-gray-400 hover:text-red-500 cursor-pointer"
-                          title="Delete textbook"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                            {/* Edit & delete buttons */}
+                            <button
+                              onClick={() => startEditBook(b)}
+                              className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/20 text-[#CBBCA9] hover:text-rose-500 cursor-pointer"
+                              title="Edit textbook parameters"
+                            >
+                              <Edit3 size={13} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBook(b.id)}
+                              className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/20 text-gray-400 hover:text-red-500 cursor-pointer"
+                              title="Delete textbook"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </>
+                        ) : (
+                          <span 
+                            className="p-1.5 text-zinc-400"
+                            title="Security Locked: Official curriculum textbook or owned by another user representation."
+                          >
+                            <Lock size={12} className="text-zinc-650" />
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -598,6 +723,8 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
               </div>
             </div>
           )}
+        </div>
+      )}
 
           {activeTab === 'categories' && (
             <div className="max-w-xl mx-auto flex flex-col gap-6">

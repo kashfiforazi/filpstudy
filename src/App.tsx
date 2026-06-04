@@ -5,14 +5,32 @@ import { PRELOADED_BOOKS, GET_MOCK_BOOK_PAGES } from './services/preloadedBooks'
 import AdminPanel from './components/AdminPanel';
 import ReaderPanel from './components/ReaderPanel';
 import AIChatbot from './components/AIChatbot';
+import { FlipStudyLogo } from './components/BrandLogos';
 import { 
   Library, Search, Star, BookOpen, Compass, Shield, HelpCircle, 
-  Settings, ChevronRight, Sun, Moon, Info, BookCheck, Plus, Trash2, Check, Flame, Sparkles
+  Settings, ChevronRight, Sun, Moon, Info, BookCheck, Plus, Trash2, Check, Flame, Sparkles,
+  Clock, Hourglass, Play, Pause, RotateCcw, Lock, Unlock, User
 } from 'lucide-react';
 
 export default function App() {
   const [initLoaded, setInitLoaded] = useState(false);
   const [books, setBooks] = useState<Book[]>([]);
+
+  // Live Date-Time Clock state
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Focus Timer state
+  const [focusMinutes, setFocusMinutes] = useState(25);
+  const [focusSeconds, setFocusSeconds] = useState(0);
+  const [focusActive, setFocusActive] = useState(false);
+  const [initialFocusMinutes, setInitialFocusMinutes] = useState(25);
+
+  // User Profile configuration state
+  const [currentEmail, setCurrentEmail] = useState(() => {
+    const saved = localStorage.getItem('flipstudy_user_email');
+    return saved || 'mdkawsarforazi.biz@gmail.com';
+  });
+
   const [categories, setCategories] = useState<Category[]>([]);
   
   // Dynamic study stats and custom study goals states
@@ -59,6 +77,46 @@ export default function App() {
 
   // Background Sakura Blossom Petals
   const [petals, setPetals] = useState<{ id: number, left: string, delay: string, duration: string, scale: number }[]>([]);
+
+  // Live Date-Time Clock update loop
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(clockInterval);
+  }, []);
+
+  // Focus Timer Tick loop
+  useEffect(() => {
+    let focusInterval: any = null;
+    if (focusActive) {
+      focusInterval = setInterval(() => {
+        if (focusSeconds > 0) {
+          setFocusSeconds((prev) => prev - 1);
+        } else if (focusMinutes > 0) {
+          setFocusMinutes((prev) => prev - 1);
+          setFocusSeconds(59);
+        } else {
+          // Finished focus!
+          setFocusActive(false);
+          // Play smart auditory completion notice 
+          try {
+            const speaker = window.speechSynthesis;
+            if (speaker) {
+              const speakText = new SpeechSynthesisUtterance("Congratulations! Focus session completed! Time for a short mindful stretch.");
+              speakText.lang = 'en-US';
+              speakText.rate = 1.0;
+              speaker.speak(speakText);
+            }
+          } catch (_) {}
+          alert("🌸 Focus Session Completed! Brilliant study streak, student! Let's take a short break.");
+        }
+      }, 1000);
+    }
+    return () => {
+      if (focusInterval) clearInterval(focusInterval);
+    };
+  }, [focusActive, focusMinutes, focusSeconds]);
 
   // Initialize DB and seeds
   useEffect(() => {
@@ -129,19 +187,26 @@ export default function App() {
     localStorage.setItem('flipstudy_goals_v2', JSON.stringify(studentGoals));
   }, [studentGoals]);
 
-  // Recalculate stats dynamically from IndexedDB stores
+  // Recalculate stats dynamically from IndexedDB stores based on active subscription/ownership
   const recalculateStats = async (currentBooks: Book[], currentCats: Category[]) => {
     try {
+      // Filter books visible to current user
+      const visibleBooks = currentBooks.filter(b => {
+        const isPublic = b.addedByAdmin || !b.ownerEmail;
+        const isMine = b.ownerEmail && b.ownerEmail.toLowerCase() === currentEmail.toLowerCase();
+        return isPublic || isMine;
+      });
+      
       let notesAccum = 0;
       let bookmarksAccum = 0;
-      for (const b of currentBooks) {
+      for (const b of visibleBooks) {
         const bookNotes = await dbInstance.getNotesForBook(b.id);
         const bookBms = await dbInstance.getBookmarksForBook(b.id);
         notesAccum += bookNotes.length;
         bookmarksAccum += bookBms.length;
       }
       setStats({
-        booksCount: currentBooks.length,
+        booksCount: visibleBooks.length,
         notesCount: notesAccum,
         bookmarksCount: bookmarksAccum,
         categoriesCount: currentCats.length
@@ -224,17 +289,32 @@ export default function App() {
   };
 
   // Resume studying continuing card target
-  const lastBookResumable = books.find(b => b.id === readingPrefs.lastBookId);
+  const lastBookResumable = books.find(b => {
+    const isPublic = b.addedByAdmin || !b.ownerEmail;
+    const isMine = b.ownerEmail && b.ownerEmail.toLowerCase() === currentEmail.toLowerCase();
+    return b.id === readingPrefs.lastBookId && (isPublic || isMine);
+  });
 
-  // Search filter evaluation
+  // Search filter evaluation (with public vs private user ownership filter)
   const filteredBooks = books.filter(b => {
     const matchCat = selectedCategory === 'All' || b.category.toLowerCase() === selectedCategory.toLowerCase();
     const matchSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                         b.category.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
+    
+    // Check ownership rules:
+    // 1) Public: added by admin, or has no owner email (preloaded books)
+    const isPublic = b.addedByAdmin || !b.ownerEmail;
+    // 2) Private: matches current user email
+    const isMine = b.ownerEmail && b.ownerEmail.toLowerCase() === currentEmail.toLowerCase();
+    
+    return matchCat && matchSearch && (isPublic || isMine);
   });
 
-  const featuredBooks = books.filter(b => b.isFeatured);
+  const featuredBooks = books.filter(b => {
+    const isPublic = b.addedByAdmin || !b.ownerEmail;
+    const isMine = b.ownerEmail && b.ownerEmail.toLowerCase() === currentEmail.toLowerCase();
+    return b.isFeatured && (isPublic || isMine);
+  });
 
   return (
     <div className={`flex flex-col md:flex-row min-h-screen font-serif transition-colors duration-500 overflow-hidden select-none ${theme === 'dark' ? 'dark text-zinc-100 bg-[#121110]' : 'text-black bg-white'}`}>
@@ -258,12 +338,10 @@ export default function App() {
       <aside className="hidden md:flex w-20 flex-col items-center py-8 bg-zinc-50 dark:bg-[#1A1816] border-r border-zinc-200 dark:border-zinc-800/60 flex-shrink-0">
         <div 
           onClick={handleLogoClick}
-          className="mb-12 cursor-pointer relative group active:scale-95 transition-transform"
+          className="mb-8 cursor-pointer relative group active:scale-95 transition-transform"
           title="Click 5 times for Admin Mode"
         >
-          <div className="w-12 h-12 bg-[#FFD1DC] dark:bg-[#5C454B] rounded-full flex items-center justify-center shadow-sm border border-[#F8BBD0] dark:border-[#7A5B60]">
-            <span className="text-[#333333] dark:text-rose-100 font-bold text-xl leading-none">F</span>
-          </div>
+          <FlipStudyLogo className="w-11 h-11" />
           {logoClickCount > 0 && (
             <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] font-mono text-rose-500 dark:text-rose-300 bg-[#FFD1DC] dark:bg-rose-950/40 px-1.5 py-0.5 rounded-full whitespace-nowrap">
               {logoClickCount}/5
@@ -301,10 +379,24 @@ export default function App() {
           </button>
         </nav>
 
-        <div className="mt-auto">
-          <div className="w-10 h-10 rounded-full border-2 border-[#DCD3C1] dark:border-zinc-800 p-1">
-            <div className="w-full h-full bg-[#E5E0D5] dark:bg-zinc-700 rounded-full"></div>
-          </div>
+        <div className="mt-auto flex flex-col items-center gap-2">
+          <button
+            onClick={() => {
+              const newEmail = prompt("👤 Switch Student Account Profile:\nEnter your email to view your personal private textbooks:", currentEmail);
+              if (newEmail && newEmail.trim()) {
+                const cleaned = newEmail.trim();
+                setCurrentEmail(cleaned);
+                localStorage.setItem('flipstudy_user_email', cleaned);
+                setTimeout(() => {
+                  handleRefreshLibrary();
+                }, 100);
+              }
+            }}
+            className="w-10 h-10 rounded-full border-2 border-[#DCD3C1] dark:border-zinc-800 p-1 cursor-pointer transition-transform hover:scale-105 flex items-center justify-center bg-zinc-100 text-zinc-600 dark:text-zinc-350 dark:bg-zinc-800 hover:bg-rose-100 hover:text-rose-600 shadow-sm"
+            title={`Active Persona: ${currentEmail} (Click to switch account)`}
+          >
+            <User size={16} />
+          </button>
         </div>
       </aside>
 
@@ -312,28 +404,44 @@ export default function App() {
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         
         {/* Mobile Header Bar */}
-        <header className="md:hidden sticky top-0 z-30 backdrop-blur-md bg-white/80 dark:bg-[#121110]/80 border-b border-zinc-200 dark:border-zinc-800/60 select-none py-3.5 px-4 flex items-center justify-between">
+        <header className="md:hidden sticky top-0 z-30 backdrop-blur-md bg-white/80 dark:bg-[#121110]/80 border-b border-zinc-200 dark:border-zinc-800/60 select-none py-3 px-4 flex items-center justify-between">
           <div 
             onClick={handleLogoClick}
-            className="flex items-center gap-2 cursor-pointer active:scale-95 transition-all"
+            className="flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
           >
-            <div className="w-9 h-9 bg-[#FFD1DC] dark:bg-[#5C454B] rounded-full flex items-center justify-center shadow-sm border border-[#F8BBD0] dark:border-[#7A5B60]">
-              <span className="text-[#333333] dark:text-rose-100 font-bold text-lg">F</span>
-            </div>
+            <FlipStudyLogo className="w-10 h-10" />
             <div>
-              <span className="font-sans font-extrabold tracking-tight text-sm text-[#333333] dark:text-white uppercase">
-                Flip<span className="text-rose-500">Study</span>
+              <span className="font-sans font-black tracking-tight text-sm text-zinc-900 dark:text-white uppercase leading-none">
+                Flip<span className="text-rose-650 dark:text-rose-400">Study</span>
               </span>
-              <p className="text-[8px] uppercase font-mono tracking-wider text-[#7B746B] dark:text-gray-500">HSC 2027 Reader</p>
+              <p className="text-[8px] uppercase font-mono tracking-wider text-[#7B746B] dark:text-gray-500 leading-none mt-0.5">Your Smart Study Partner</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {logoClickCount > 0 && (
               <span className="text-[9px] font-mono text-rose-500 bg-rose-50 dark:bg-rose-950/20 px-2 py-0.5 rounded-full animate-bounce">
                 Keys {logoClickCount}/5
               </span>
             )}
+            <button
+              onClick={() => {
+                const newEmail = prompt("👤 Switch Student Account Profile:\nEnter your email to view your personal private textbooks:", currentEmail);
+                if (newEmail && newEmail.trim()) {
+                  const cleaned = newEmail.trim();
+                  setCurrentEmail(cleaned);
+                  localStorage.setItem('flipstudy_user_email', cleaned);
+                  setTimeout(() => {
+                    handleRefreshLibrary();
+                  }, 100);
+                }
+              }}
+              className="p-1 text-zinc-650 dark:text-gray-300 hover:text-rose-500 text-[10px] font-bold border border-zinc-200 dark:border-zinc-800 rounded px-1.5 py-0.5 bg-zinc-50 dark:bg-[#1C1A18] flex items-center gap-1 cursor-pointer"
+              title={`Active Persona: ${currentEmail}`}
+            >
+              <User size={10} />
+              <span className="max-w-[70px] truncate">{currentEmail.split('@')[0]}</span>
+            </button>
             <button
               onClick={() => setIsAdminOpen(true)}
               className="p-1.5 text-[#7B746B] hover:text-rose-500 transition-colors"
@@ -354,11 +462,16 @@ export default function App() {
           
           {/* Header Title area */}
           <header className="flex flex-col sm:flex-row justify-between sm:items-end gap-4 select-none border-b border-zinc-200 dark:border-zinc-800/60 pb-6">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-black dark:text-white">FlipStudy</h1>
-              <p className="text-zinc-700 dark:text-gray-400 font-sans text-xs mt-1.5 uppercase tracking-widest font-semibold">
-                Syllabus digital library • HSC 2027 Premium System
-              </p>
+            <div className="flex items-center gap-4">
+              <FlipStudyLogo className="w-16 h-16 flex-shrink-0" />
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-sans font-black tracking-tight text-zinc-900 dark:text-white">
+                  Flip<span className="text-rose-600 dark:text-rose-400">Study</span>
+                </h1>
+                <p className="text-rose-600 dark:text-rose-350 font-sans text-xs mt-1 uppercase tracking-widest font-extrabold font-black">
+                  Your Smart Study Partner
+                </p>
+              </div>
             </div>
 
             {/* Quick Search Input */}
@@ -637,48 +750,202 @@ export default function App() {
                     ADD
                   </button>
                 </form>
-              </div>
-
-              {/* Dynamic Classroom Insights / Statistics Dashboard card */}
+                         {/* LIVE CLOCK & FOCUS TIMER WIDGET (Directly on top) */}
               <div className="bg-white dark:bg-[#1C1A18] rounded-3xl p-6 sm:p-8 shadow-sm border border-zinc-200 dark:border-zinc-800">
-                <h4 className="text-sm font-sans font-black uppercase tracking-wider mb-6 flex items-center gap-2 text-black dark:text-white pb-3 border-b border-zinc-100 dark:border-zinc-800/60">
-                  <Sparkles className="w-4 h-4 text-rose-400" />
+                {/* Section Title */}
+                <h4 className="text-sm font-sans font-black uppercase tracking-wider mb-4 flex items-center gap-2 text-zinc-900 dark:text-white pb-3 border-b border-zinc-100 dark:border-zinc-800/60">
+                  <Clock className="w-4 h-4 text-rose-500 animate-pulse" />
+                  Live Clock & Study Focus
+                </h4>
+
+                {/* Date & Time Segment */}
+                <div className="mb-6 p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/20 border border-zinc-100 dark:border-zinc-800 text-center">
+                  <p className="text-2xl font-mono font-bold tracking-tight text-zinc-800 dark:text-gray-100">
+                    {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </p>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-sans mt-1 uppercase tracking-wider font-bold">
+                    {currentTime.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                </div>
+
+                {/* Focus Timer Segment */}
+                <div className="flex flex-col items-center">
+                  <div className="relative flex items-center justify-center w-28 h-28 mb-4">
+                    {/* Minimal Circular Progress ring */}
+                    <svg className="absolute w-full h-full transform -rotate-90">
+                      <circle
+                        cx="56"
+                        cy="56"
+                        r="48"
+                        className="stroke-zinc-100 dark:stroke-zinc-800"
+                        strokeWidth="5"
+                        fill="transparent"
+                      />
+                      <circle
+                        cx="56"
+                        cy="56"
+                        r="48"
+                        className="stroke-rose-500 transition-all duration-100"
+                        strokeWidth="6"
+                        fill="transparent"
+                        strokeDasharray={2 * Math.PI * 48}
+                        strokeDashoffset={
+                          2 * Math.PI * 48 * (1 - (focusMinutes * 60 + focusSeconds) / (initialFocusMinutes * 60 || 1))
+                        }
+                      />
+                    </svg>
+
+                    {/* Timer digits */}
+                    <div className="text-center z-10 select-none">
+                      <span className="text-xl font-mono font-bold text-zinc-900 dark:text-white block">
+                        {String(focusMinutes).padStart(2, '0')}:{String(focusSeconds).padStart(2, '0')}
+                      </span>
+                      <span className="text-[9px] font-sans text-rose-600 dark:text-rose-450 uppercase tracking-widest font-black">
+                        {focusActive ? 'Studying' : 'Focused'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Preset buttons */}
+                  <div className="flex gap-2 mb-4 w-full justify-center">
+                    <button
+                      onClick={() => {
+                        setFocusActive(false);
+                        setFocusMinutes(10);
+                        setFocusSeconds(0);
+                        setInitialFocusMinutes(10);
+                      }}
+                      className="px-2.5 py-1 text-[10px] uppercase tracking-wider font-mono font-bold rounded bg-zinc-100 dark:bg-zinc-800/60 text-zinc-650 dark:text-gray-300 hover:bg-rose-100 dark:hover:bg-rose-955/40 hover:text-rose-600 dark:hover:text-rose-300 transition-all cursor-pointer"
+                    >
+                      10 Min
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFocusActive(false);
+                        setFocusMinutes(25);
+                        setFocusSeconds(0);
+                        setInitialFocusMinutes(25);
+                      }}
+                      className="px-2.5 py-1 text-[10px] uppercase tracking-wider font-mono font-bold rounded bg-rose-100 dark:bg-rose-950/45 text-rose-600 dark:text-rose-300 hover:bg-rose-200 dark:hover:bg-rose-900/40 transition-all cursor-pointer"
+                    >
+                      25 Min
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFocusActive(false);
+                        setFocusMinutes(50);
+                        setFocusSeconds(0);
+                        setInitialFocusMinutes(50);
+                      }}
+                      className="px-2.5 py-1 text-[10px] uppercase tracking-wider font-mono font-bold rounded bg-zinc-100 dark:bg-zinc-800/60 text-zinc-650 dark:text-gray-300 hover:bg-rose-100 dark:hover:bg-rose-955/40 hover:text-rose-600 dark:hover:text-rose-300 transition-all cursor-pointer"
+                    >
+                      50 Min
+                    </button>
+                  </div>
+
+                  {/* Time custom settings */}
+                  <div className="flex items-center gap-3 mb-4 select-none">
+                    <button
+                      onClick={() => {
+                        if (!focusActive && focusMinutes > 1) {
+                          setFocusMinutes(m => m - 1);
+                          setInitialFocusMinutes(m => m - 1);
+                        }
+                      }}
+                      disabled={focusActive}
+                      className="w-6 h-6 rounded-full flex items-center justify-center border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800/40 text-zinc-900 dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-30 cursor-pointer text-xs font-bold font-mono transition-colors"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-sans text-zinc-650 dark:text-zinc-350 font-bold">Adjust Minutes</span>
+                    <button
+                      onClick={() => {
+                        if (!focusActive) {
+                          setFocusMinutes(m => m + 1);
+                          setInitialFocusMinutes(m => m + 1);
+                        }
+                      }}
+                      disabled={focusActive}
+                      className="w-6 h-6 rounded-full flex items-center justify-center border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800/40 text-zinc-900 dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700 disabled:opacity-30 cursor-pointer text-xs font-bold font-mono transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {/* Play & Pause actions */}
+                  <div className="flex items-center gap-3 w-full">
+                    <button
+                      onClick={() => setFocusActive(!focusActive)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-sans font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer text-white shadow-sm ${
+                        focusActive
+                          ? 'bg-amber-500 hover:bg-amber-600'
+                          : 'bg-rose-500 hover:bg-rose-600'
+                      }`}
+                    >
+                      {focusActive ? (
+                        <>
+                          <Pause size={14} /> Pause
+                        </>
+                      ) : (
+                        <>
+                          <Play size={14} /> Start Focus
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setFocusActive(false);
+                        setFocusMinutes(initialFocusMinutes);
+                        setFocusSeconds(0);
+                      }}
+                      className="p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-855 transition-colors hover:text-rose-500 cursor-pointer"
+                      title="Reset focus clock"
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                  </div>
+                </div>
+                         {/* Dynamic Classroom Insights / Statistics Dashboard card (Directly below Live Clock) */}
+              <div className="bg-white dark:bg-[#1C1A18] rounded-3xl p-6 sm:p-8 shadow-sm border border-zinc-200 dark:border-zinc-800">
+                <h4 className="text-sm font-sans font-black uppercase tracking-wider mb-6 flex items-center gap-2 text-zinc-900 dark:text-white pb-3 border-b border-zinc-100 dark:border-zinc-800/60">
+                  <Sparkles className="w-4 h-4 text-rose-455" />
                   Classroom Analytics
                 </h4>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3.5 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
-                    <p className="text-2xl font-serif font-bold text-black dark:text-white">
+                    <p className="text-2xl font-serif font-bold text-zinc-900 dark:text-white">
                       {stats.booksCount || books.length}
                     </p>
-                    <p className="text-[9px] text-zinc-600 dark:text-gray-400 font-sans font-bold tracking-wider uppercase">
+                    <p className="text-[9px] text-zinc-650 dark:text-gray-400 font-sans font-bold tracking-wider uppercase">
                       SYLLABI BOOKS
                     </p>
                   </div>
                   
                   <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3.5 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
-                    <p className="text-2xl font-serif font-bold text-black dark:text-white">
+                    <p className="text-2xl font-serif font-bold text-zinc-900 dark:text-white">
                       {stats.notesCount}
                     </p>
-                    <p className="text-[9px] text-zinc-600 dark:text-gray-400 font-sans font-bold tracking-wider uppercase">
+                    <p className="text-[9px] text-zinc-650 dark:text-gray-400 font-sans font-bold tracking-wider uppercase">
                       STICKY NOTES
                     </p>
                   </div>
 
                   <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3.5 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
-                    <p className="text-2xl font-serif font-bold text-black dark:text-white">
+                    <p className="text-2xl font-serif font-bold text-zinc-900 dark:text-white">
                       {stats.bookmarksCount}
                     </p>
-                    <p className="text-[9px] text-zinc-600 dark:text-gray-400 font-sans font-bold tracking-wider uppercase">
+                    <p className="text-[9px] text-zinc-650 dark:text-gray-400 font-sans font-bold tracking-wider uppercase">
                       BOOKMARKS SET
                     </p>
                   </div>
 
                   <div className="bg-zinc-50 dark:bg-zinc-800/30 p-3.5 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
-                    <p className="text-2xl font-serif font-bold text-black dark:text-white">
+                    <p className="text-2xl font-serif font-bold text-zinc-900 dark:text-white">
                       {stats.categoriesCount || categories.length}
                     </p>
-                    <p className="text-[9px] text-zinc-600 dark:text-gray-400 font-sans font-bold tracking-wider uppercase">
+                    <p className="text-[9px] text-zinc-650 dark:text-gray-400 font-sans font-bold tracking-wider uppercase">
                       SUBJECT TYPES
                     </p>
                   </div>
@@ -690,6 +957,8 @@ export default function App() {
                   </span>
                 </div>
               </div>
+
+            </div>          </div>
 
             </div>
 
@@ -724,6 +993,7 @@ export default function App() {
         onRefreshLibrary={handleRefreshLibrary}
         categories={categories}
         books={books}
+        currentEmail={currentEmail}
       />
 
       {/* PRIMARY READER LAYER DISPLAY */}

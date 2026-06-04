@@ -7,6 +7,8 @@ export interface Book {
   isFeatured: boolean;
   order?: number;
   createdAt: number;
+  ownerEmail?: string;
+  addedByAdmin?: boolean;
 }
 
 export interface StickyNote {

@@ -7,6 +7,7 @@ import {
 import { Book, StickyNote } from '../types';
 import { TextbookPage } from '../services/preloadedBooks';
 import { dbInstance } from '../db';
+import { SoraChatbotLogo } from './BrandLogos';
 
 interface ChatMessage {
   id: string;
@@ -133,6 +134,14 @@ export default function AIChatbot({
 
       const data = await response.json();
       
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (!data.reply) {
+        throw new Error("I could not generate a reply. Please try again!");
+      }
+      
       setMessages(prev => [...prev, {
         id: 'reply_' + Date.now(),
         role: 'assistant',
@@ -141,10 +150,11 @@ export default function AIChatbot({
       }]);
     } catch (err: any) {
       console.warn("AI Chatbot fetch error: ", err);
+      const errorMsg = err?.message || "I was unable to reach the study server.";
       setMessages(prev => [...prev, {
         id: 'reply_err_' + Date.now(),
         role: 'assistant',
-        content: "🌸 **Oh-no! I lost synchronization.**\n\nI was unable to reach the study server. Please verify your internet connection or ensure your Dev Server is properly running on port 3000.",
+        content: `🌸 **Oh-no! I lost synchronization.**\n\n${errorMsg}\n\nPlease click **Settings > Secrets** in your AI Studio workspace to verify your \`GEMINI_API_KEY\` is configured properly.`,
         timestamp: new Date()
       }]);
     } finally {
@@ -202,16 +212,16 @@ export default function AIChatbot({
             {/* Header Area */}
             <div className="p-4 bg-zinc-50 dark:bg-[#25221F] border-b border-zinc-200/80 dark:border-zinc-800/80 flex items-center justify-between select-none">
               <div className="flex items-center gap-2.5">
-                <div className="relative w-8.5 h-8.5 rounded-full bg-rose-100 dark:bg-rose-950/40 flex items-center justify-center border border-rose-200 dark:border-rose-900/30">
-                  <span className="text-sm">🌸</span>
-                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white dark:border-[#25221F]" />
+                <div className="relative">
+                  <SoraChatbotLogo className="w-10 h-10" />
+                  <div className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white dark:border-[#25221F]" />
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <h5 className="text-xs font-black tracking-wider uppercase text-black dark:text-white">SORA</h5>
+                    <h5 className="text-xs font-black tracking-wider uppercase text-black dark:text-white">SORA AI</h5>
                     <span className="bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 text-[8px] font-bold px-1.5 py-0.2 rounded uppercase">HSC Tutor</span>
                   </div>
-                  <p className="text-[10px] text-zinc-550 dark:text-zinc-400 font-medium">Japanese Minimalist Study Partner</p>
+                  <p className="text-[10px] text-zinc-550 dark:text-zinc-400 font-medium">Your Smart Study Partner</p>
                 </div>
               </div>
 
@@ -246,24 +256,41 @@ export default function AIChatbot({
                     className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed shadow-sm ${
                       m.role === 'user'
                         ? 'bg-black dark:bg-[#FFD1DC] text-white dark:text-black rounded-tr-none font-medium'
-                        : 'bg-white dark:bg-[#25221F] text-zinc-800 dark:text-zinc-150 rounded-tl-none border border-zinc-150 dark:border-zinc-800'
+                        : 'bg-zinc-900 dark:bg-[#25221F] text-white rounded-tl-none border border-zinc-800 dark:border-zinc-800'
                     }`}
                   >
                     {/* Render message formatting simple Markdown blocks */}
                     <div className="space-y-1.5 whitespace-pre-wrap select-text">
-                      {m.content.split('\n\n').map((paragraph, index) => {
+                      {(m.content || "").split('\n\n').map((paragraph, index) => {
                         // Very simple parser for bullet points/lists
                         if (paragraph.startsWith('- ') || paragraph.startsWith('* ')) {
                           return (
-                            <ul key={index} className="list-disc pl-4 space-y-1 my-1">
+                            <ul key={index} className="list-disc pl-4 space-y-1 my-1 text-white">
                               {paragraph.split('\n').map((li, lIdx) => (
                                 <li key={lIdx}>{li.replace(/^[\-\*]\s+/, '')}</li>
                               ))}
                             </ul>
                           );
                         }
+                        
+                        // Parse simple bold markdown inline: **text**
+                        const parts = paragraph.split(/(\*\*.*?\*\*)/g);
+                        const parsedChildren = parts.map((part, pIdx) => {
+                          if (part.startsWith('**') && part.endsWith('**')) {
+                            return <strong key={pIdx} className="font-extrabold text-[#F48FB1] dark:text-[#F48FB1]">{part.slice(2, -2)}</strong>;
+                          }
+                          // Parse simple inline backticks: `code`
+                          const codeParts = part.split(/(`.*?`)/g);
+                          return codeParts.map((subPart, sIdx) => {
+                            if (subPart.startsWith('`') && subPart.endsWith('`')) {
+                              return <code key={sIdx} className="px-1.5 py-0.5 font-mono text-[10px] bg-zinc-800 dark:bg-zinc-800 text-rose-300 dark:text-rose-300 rounded font-bold">{subPart.slice(1, -1)}</code>;
+                            }
+                            return subPart;
+                          });
+                        });
+
                         // Simple parser for standard lines
-                        return <p key={index}>{paragraph}</p>;
+                        return <p key={index}>{parsedChildren}</p>;
                       })}
                     </div>
                     <span className={`text-[8px] mt-1 block text-right font-mono ${m.role === 'user' ? 'text-zinc-400 dark:text-zinc-650' : 'text-zinc-400'}`}>
@@ -276,7 +303,7 @@ export default function AIChatbot({
               {/* Typing indicator state */}
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-white dark:bg-[#25221F] rounded-2xl rounded-tl-none p-3 border border-zinc-200 dark:border-zinc-800 flex items-center gap-1">
+                  <div className="bg-zinc-900 dark:bg-[#25221F] rounded-2xl rounded-tl-none p-3 border border-zinc-850 dark:border-zinc-800 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
