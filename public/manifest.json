@@ -1,0 +1,21 @@
+{
+  "name": "FlipStudy — Premium HSC Digital Bookshelf",
+  "short_name": "FlipStudy",
+  "description": "Japanese-minimalism inspired digital bookshelf and physical-feeling textbook PDF reader.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF9F5",
+  "theme_color": "#FFD1DC",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/papercut/120/cherry-blossom.png",
+      "sizes": "120x120",
+      "type": "image/png"
+    },
+    {
+      "src": "https://img.icons8.com/papercut/512/cherry-blossom.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

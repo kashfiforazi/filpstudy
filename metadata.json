@@ -1,0 +1,6 @@
+{
+  "name": "FlipStudy",
+  "description": "A premium Japanese-minimalism inspired digital bookshelf and PDF textbook reader with realistic double-page viewing, drawings, annotations, and smart sticky-notes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
