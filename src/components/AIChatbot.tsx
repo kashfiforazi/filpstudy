@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MessageSquare, X, Send, Sparkles, BookOpen, 
   HelpCircle, Lightbulb, Flame, Calendar, BookOpenCheck 

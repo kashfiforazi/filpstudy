@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flipstudy-v1';
+const CACHE_NAME = 'flipstudy-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -33,24 +33,27 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Simple cache-first or network fallback to make offline study support super robust
+  // Network-First with Cache Fallback strategy
   e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(e.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
+    fetch(e.request)
+      .then((networkResponse) => {
+        // If successful, cache the response clone
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(e.request, responseToCache);
+          });
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(e.request, responseToCache);
-        });
         return networkResponse;
-      }).catch(() => {
-        // Fallback for offline if request fails completely
-      });
-    })
+      })
+      .catch(() => {
+        // If network request fails, return cached response if available
+        return caches.match(e.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Optional: Add simple fallbacks here if necessary
+        });
+      })
   );
 });
