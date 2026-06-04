@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Category, UserPreferences } from './types';
 import { dbInstance } from './db';
-import { PRELOADED_BOOKS } from './services/preloadedBooks';
+import { PRELOADED_BOOKS, GET_MOCK_BOOK_PAGES } from './services/preloadedBooks';
 import AdminPanel from './components/AdminPanel';
 import ReaderPanel from './components/ReaderPanel';
+import AIChatbot from './components/AIChatbot';
 import { 
   Library, Search, Star, BookOpen, Compass, Shield, HelpCircle, 
   Settings, ChevronRight, Sun, Moon, Info, BookCheck, Plus, Trash2, Check, Flame, Sparkles
@@ -734,6 +735,19 @@ export default function App() {
           onUpdatePreferences={handleUpdatePreferences}
         />
       )}
+
+      {/* SORA - PROFESSIONAL EXPERT AI STUDY TUTOR */}
+      <AIChatbot
+        currentBook={activeBook}
+        currentPage={readingPrefs?.lastPage || 1}
+        pageObj={activeBook ? (GET_MOCK_BOOK_PAGES(activeBook.id)?.[(readingPrefs?.lastPage || 1) - 1] || null) : null}
+        isReading={activeBook !== null}
+        totalBooks={books.length}
+        completedGoals={studentGoals.filter(g => g.completed).length}
+        totalGoals={studentGoals.length}
+        goalsList={studentGoals}
+        categories={categories}
+      />
     </div>
   );
 }
