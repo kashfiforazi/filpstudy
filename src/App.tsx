@@ -750,6 +750,8 @@ export default function App() {
                     ADD
                   </button>
                 </form>
+              </div>
+
                          {/* LIVE CLOCK & FOCUS TIMER WIDGET (Directly on top) */}
               <div className="bg-white dark:bg-[#1C1A18] rounded-3xl p-6 sm:p-8 shadow-sm border border-zinc-200 dark:border-zinc-800">
                 {/* Section Title */}
@@ -958,11 +960,9 @@ export default function App() {
                 </div>
               </div>
 
-            </div>          </div>
-
             </div>
-
           </div>
+        </div>
 
           {/* Bottom Status Bar / Footer */}
           <footer className="mt-auto flex items-center justify-between border-t border-[#E5E0D5] dark:border-zinc-800/60 pt-6">
