@@ -35,6 +35,7 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
   const [coverBase64, setCoverBase64] = useState('');
   const [pdfFileName, setPdfFileName] = useState('');
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [pdfUrl, setPdfUrl] = useState('');
   
   // Custom states for category
   const [newCatName, setNewCatName] = useState('');
@@ -49,6 +50,7 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
     setCoverBase64('');
     setPdfFileName('');
     setPdfBlob(null);
+    setPdfUrl('');
   };
 
   useEffect(() => {
@@ -103,7 +105,7 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
     }
 
     const currentBook = books.find(b => b.id === bookId);
-    const finalPdf = pdfBlob || currentBook?.pdfFile || 'mock-physics';
+    const finalPdf = pdfBlob || pdfUrl.trim() || currentBook?.pdfFile || 'mock-physics';
 
     const isSaveAdmin = isSyllabusAdminMode && isAdminLoggedIn;
 
@@ -176,8 +178,19 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
     setIsFeatured(book.isFeatured);
     setCoverBase64(book.coverImage.startsWith('data:') ? book.coverImage : '');
     setCoverFileName(book.coverImage.startsWith('data:') ? 'uploaded_cover.png' : 'Preloaded Gradient');
-    setPdfFileName(book.pdfFile instanceof Blob ? 'Uploaded PDF Document' : 'Preloaded Textbook System');
     setPdfBlob(null);
+    if (typeof book.pdfFile === 'string') {
+      if (book.pdfFile.startsWith('http') || book.pdfFile.startsWith('//')) {
+        setPdfUrl(book.pdfFile);
+        setPdfFileName('Custom Web PDF Link');
+      } else {
+        setPdfUrl('');
+        setPdfFileName(book.pdfFile === 'mock-physics' ? '' : 'Preloaded Textbook System');
+      }
+    } else {
+      setPdfUrl('');
+      setPdfFileName('Uploaded PDF Document');
+    }
   };
 
   // Shift order of book (Up / Down)
@@ -547,26 +560,71 @@ export default function AdminPanel({ isOpen, onClose, onRefreshLibrary, categori
                   </div>
                 </div>
 
-                {/* PDF Resource File Upload */}
+                {/* PDF Resource File Source Selection */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                    NESA Syllabus PDF Document (.pdf)
+                    Textbook PDF Document Source
                   </label>
-                  <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer text-xs text-gray-500">
-                      <FileText size={15} />
-                      <span className="truncate">{pdfFileName || 'Choose Textbook PDF...'}</span>
-                      <input 
-                        type="file" 
-                        accept="application/pdf" 
-                        className="hidden" 
-                        onChange={handlePdfChange} 
-                      />
-                    </label>
-                    <p className="text-[10px] text-gray-400">
-                      If empty, FlipStudy will dynamically generate immersive educational pages!
-                    </p>
+                  
+                  <div className="bg-gray-100 dark:bg-zinc-900/50 p-1 rounded-lg flex gap-1 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => { setPdfUrl(''); }}
+                      className={`flex-1 py-1 text-[11px] font-medium rounded-md transition-all cursor-pointer ${
+                        !pdfUrl ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-700'
+                      }`}
+                    >
+                      Local PDF File Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { if (!pdfUrl) setPdfUrl('https://'); }}
+                      className={`flex-1 py-1 text-[11px] font-medium rounded-md transition-all cursor-pointer ${
+                        pdfUrl ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-700'
+                      }`}
+                    >
+                      Google Drive / Web PDF Link
+                    </button>
                   </div>
+
+                  {!pdfUrl ? (
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 dark:border-zinc-700 rounded-lg hover:bg-gray-50 dark:hover:bg-zinc-800/50 cursor-pointer text-xs text-gray-500 bg-white dark:bg-zinc-900/30">
+                        <FileText size={15} className="text-zinc-400" />
+                        <span className="truncate">{pdfFileName && !pdfUrl ? pdfFileName : 'Choose Textbook PDF...'}</span>
+                        <input 
+                          type="file" 
+                          accept="application/pdf" 
+                          className="hidden" 
+                          onChange={handlePdfChange} 
+                        />
+                      </label>
+                      <p className="text-[10px] text-gray-400 leading-tight">
+                        🔒 Saved locally in your browser. Perfect for offline study on this device.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <div className="relative flex items-center">
+                        <FileText size={14} className="absolute left-3 text-zinc-400" />
+                        <input
+                          type="url"
+                          value={pdfUrl === 'https://' ? '' : pdfUrl}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setPdfUrl(value || 'https://');
+                            setPdfFileName(value ? 'Custom Cloud PDF Link' : '');
+                            setPdfBlob(null);
+                          }}
+                          placeholder="Paste Google Drive link or direct PDF URL..."
+                          className="w-full pl-9 pr-3 py-2 text-xs bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:border-[#FFD1DC] text-zinc-800 dark:text-zinc-150 text-black dark:text-white font-medium"
+                        />
+                      </div>
+                      <p className="text-[10px] text-[#FF6B81] dark:text-rose-400 leading-normal font-medium">
+                        ⚡ Recommended! Paste Google Drive link. This works across mobile devices and tablets without wasting device storage space!
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Highlight/Featured book */}

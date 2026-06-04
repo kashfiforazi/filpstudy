@@ -129,6 +129,50 @@ ${context.pageObj.paragraphs ? context.pageObj.paragraphs.join('\n\n') : 'Syllab
     }
   });
 
+  // API Route to proxy external PDFs / Google Drive files and bypass CORS restrictions
+  app.get("/api/proxy-pdf", async (req, res) => {
+    try {
+      const pdfUrlParam = req.query.url as string;
+      if (!pdfUrlParam) {
+        return res.status(400).send("Missing 'url' query parameter.");
+      }
+
+      // Convert Google Drive view links to direct download link automatically
+      let targetUrl = pdfUrlParam;
+      if (targetUrl.includes("drive.google.com")) {
+        const fileIdMatch = targetUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || targetUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (fileIdMatch && fileIdMatch[1]) {
+          targetUrl = `https://docs.google.com/uc?export=download&id=${fileIdMatch[1]}`;
+        }
+      }
+
+      const response = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+      });
+
+      if (!response.ok) {
+        return res.status(response.status).send(`Failed to fetch PDF. Status: ${response.status}`);
+      }
+
+      // Set MIME type
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.toLowerCase().includes("pdf")) {
+        res.setHeader("content-type", contentType);
+      } else {
+        res.setHeader("content-type", "application/pdf");
+      }
+
+      // Transfer the buffer
+      const arrayBuffer = await response.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } catch (err: any) {
+      console.error("PDF Proxy Error: ", err);
+      res.status(500).send(`PDF Proxy failed: ${err.message || err}`);
+    }
+  });
+
   // Vite middleware for dev environment / static files for production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

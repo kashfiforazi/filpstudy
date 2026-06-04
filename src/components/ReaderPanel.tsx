@@ -79,12 +79,26 @@ export default function ReaderPanel({ book, onClose, preferences, onUpdatePrefer
         
         pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        let fileData: any = book.pdfFile;
-        if (book.pdfFile instanceof Blob) {
-          fileData = new Uint8Array(await book.pdfFile.arrayBuffer());
+        let loadingTask;
+        if (typeof book.pdfFile === 'string') {
+          let pdfUrl = book.pdfFile;
+          if (pdfUrl.startsWith('http') || pdfUrl.startsWith('//')) {
+            // Support Vercel and dynamic hostings dynamically
+            // Check if we are on a custom port/URL like vercel and point back to the applet backend appropriately
+            let baseDomain = window.location.origin;
+            if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('github.io') || window.location.port !== '3000') {
+              baseDomain = 'https://ais-pre-wsqj5xymy3lbkirtsvxwom-484510607149.asia-southeast1.run.app';
+            }
+            pdfUrl = `${baseDomain}/api/proxy-pdf?url=${encodeURIComponent(pdfUrl)}`;
+          }
+          loadingTask = pdfjs.getDocument({ url: pdfUrl });
+        } else if (book.pdfFile instanceof Blob) {
+          const fileData = new Uint8Array(await book.pdfFile.arrayBuffer());
+          loadingTask = pdfjs.getDocument({ data: fileData });
+        } else {
+          throw new Error('Unsupported textbook PDF format.');
         }
 
-        const loadingTask = pdfjs.getDocument({ data: fileData });
         const doc = await loadingTask.promise;
         setPdfDoc(doc);
         setTotalPages(doc.numPages);

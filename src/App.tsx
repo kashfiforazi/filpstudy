@@ -159,7 +159,12 @@ export default function App() {
       if (savedTheme) {
         setTheme(savedTheme);
       } else {
-        const preSelTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        let preSelTheme: 'light' | 'dark' = 'light';
+        try {
+          if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            preSelTheme = 'dark';
+          }
+        } catch (_) {}
         setTheme(preSelTheme);
       }
 
